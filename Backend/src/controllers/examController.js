@@ -2,6 +2,8 @@ const asyncHandler = require('../middleware/asyncHandler');
 const Exam = require('../models/Exam');
 const ExamResult = require('../models/ExamResult');
 const Student = require('../models/Student');
+const Class = require('../models/Class');
+const Subject = require('../models/Subject');
 
 // ---- Grading ---------------------------------------------------------------
 
@@ -20,11 +22,26 @@ const round1 = (n) => Math.round((Number(n) || 0) * 10) / 10;
 // Merge an exam's subjects, the class students, and any saved marks into a
 // ranked result sheet with totals, percentage, grade and pass/fail per student.
 const buildResultSheet = (exam, students, resultDocs) => {
+    const isMidTerm = exam.examType === 'Mid-Term';
+    const isFinal = exam.examType === 'Final';
+
+    const getSubjectFullMarks = (sub) => {
+        if (isMidTerm) return Number(sub.nisfiFullMarks || sub.fullMarks || 40);
+        if (isFinal) return Number(sub.nihaayiFullMarks || sub.fullMarks || 60);
+        return Number(sub.fullMarks || (Number(sub.nisfiFullMarks || 40) + Number(sub.nihaayiFullMarks || 60)));
+    };
+
+    const getSubjectPassMarks = (sub) => {
+        const full = getSubjectFullMarks(sub);
+        const pass = Number(sub.passMarks || 0);
+        return (pass > 0 && pass < full) ? pass : Math.round(full * 0.4);
+    };
+
     const byStudent = new Map();
     resultDocs.forEach((r) => byStudent.set(String(r.studentId), r));
 
     const subjects = exam.subjects || [];
-    const totalFull = subjects.reduce((sum, s) => sum + Number(s.fullMarks || 0), 0);
+    const totalFull = subjects.reduce((sum, s) => sum + getSubjectFullMarks(s), 0);
 
     const rows = students.map((s) => {
         const doc = byStudent.get(String(s._id));
@@ -39,20 +56,32 @@ const buildResultSheet = (exam, students, resultDocs) => {
             const isAbsent = !!m?.isAbsent;
             const nisfi = isAbsent ? 0 : Number(m?.nisfi || 0);
             const nihaayi = isAbsent ? 0 : Number(m?.nihaayi || 0);
-            const obtained = isAbsent
-                ? 0
-                : (m?.nisfi !== undefined || m?.nihaayi !== undefined)
-                    ? (nisfi + nihaayi)
-                    : Number(m?.marksObtained || 0);
-            const passed = !isAbsent && obtained >= Number(sub.passMarks || 0);
+            const subFull = getSubjectFullMarks(sub);
+            const subPass = getSubjectPassMarks(sub);
+
+            let obtained = 0;
+            if (!isAbsent) {
+                if (isMidTerm) {
+                    obtained = (m?.nisfi !== undefined && m?.nisfi !== null) ? nisfi : Number(m?.marksObtained || 0);
+                } else if (isFinal) {
+                    obtained = (m?.nihaayi !== undefined && m?.nihaayi !== null) ? nihaayi : Number(m?.marksObtained || 0);
+                } else {
+                    obtained = (m?.nisfi !== undefined || m?.nihaayi !== undefined)
+                        ? (nisfi + nihaayi)
+                        : Number(m?.marksObtained || 0);
+                }
+            }
+
+            const passed = !isAbsent && obtained >= subPass;
             if (entered && !passed) failedSubjects += 1;
             totalObtained += obtained;
+
             return {
                 subject: sub.name,
                 nisfiFullMarks: Number(sub.nisfiFullMarks || 40),
                 nihaayiFullMarks: Number(sub.nihaayiFullMarks || 60),
-                fullMarks: Number(sub.fullMarks || 100),
-                passMarks: Number(sub.passMarks || 0),
+                fullMarks: subFull,
+                passMarks: subPass,
                 nisfi,
                 nihaayi,
                 marksObtained: obtained,
@@ -161,13 +190,27 @@ const getExamById = asyncHandler(async (req, res) => {
     res.json(exam);
 });
 
-const normalizeSubjects = (subjects) => {
+const normalizeSubjects = (subjects, examType = 'Mid-Term') => {
     if (!Array.isArray(subjects)) return [];
     return subjects.map((s) => {
         const nisfiFullMarks = Math.max(0, Number(s.nisfiFullMarks) || 40);
         const nihaayiFullMarks = Math.max(0, Number(s.nihaayiFullMarks) || 60);
-        const fullMarks = Number(s.fullMarks) || (nisfiFullMarks + nihaayiFullMarks);
-        const passMarks = Math.max(0, Number(s.passMarks) || 40);
+        let fullMarks = Number(s.fullMarks) || (nisfiFullMarks + nihaayiFullMarks);
+
+        if (examType === 'Mid-Term') {
+            fullMarks = nisfiFullMarks;
+        } else if (examType === 'Final') {
+            fullMarks = nihaayiFullMarks;
+        }
+
+        let passMarks = (s.passMarks !== undefined && s.passMarks !== null && s.passMarks !== '')
+            ? Number(s.passMarks)
+            : Math.round(fullMarks * 0.4);
+
+        if (isNaN(passMarks) || passMarks <= 0 || passMarks >= fullMarks) {
+            passMarks = Math.round(fullMarks * 0.4);
+        }
+
         return {
             name: String(s.name || '').trim(),
             nisfiFullMarks,
@@ -185,7 +228,7 @@ const createExam = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error('Exam title and class are required');
     }
-    payload.subjects = normalizeSubjects(payload.subjects);
+    payload.subjects = normalizeSubjects(payload.subjects, payload.examType);
     if (payload.subjects.length === 0) {
         res.status(400);
         throw new Error('Add at least one subject to the exam');
@@ -250,6 +293,9 @@ const saveExamResults = asyncHandler(async (req, res) => {
         throw new Error('No marks provided');
     }
 
+    const isMidTerm = exam.examType === 'Mid-Term';
+    const isFinal = exam.examType === 'Final';
+
     const validSubjects = new Set((exam.subjects || []).map((s) => s.name));
     let saved = 0;
     for (const r of results) {
@@ -260,11 +306,20 @@ const saveExamResults = asyncHandler(async (req, res) => {
                 const isAbsent = !!m.isAbsent;
                 const nisfi = isAbsent ? 0 : Math.max(0, Number(m.nisfi) || 0);
                 const nihaayi = isAbsent ? 0 : Math.max(0, Number(m.nihaayi) || 0);
-                const marksObtained = isAbsent
-                    ? 0
-                    : (m.nisfi !== undefined || m.nihaayi !== undefined)
-                        ? (nisfi + nihaayi)
-                        : Math.max(0, Number(m.marksObtained) || 0);
+
+                let marksObtained = 0;
+                if (!isAbsent) {
+                    if (isMidTerm) {
+                        marksObtained = (m.nisfi !== undefined && m.nisfi !== null) ? nisfi : Math.max(0, Number(m.marksObtained) || 0);
+                    } else if (isFinal) {
+                        marksObtained = (m.nihaayi !== undefined && m.nihaayi !== null) ? nihaayi : Math.max(0, Number(m.marksObtained) || 0);
+                    } else {
+                        marksObtained = (m.nisfi !== undefined || m.nihaayi !== undefined)
+                            ? (nisfi + nihaayi)
+                            : Math.max(0, Number(m.marksObtained) || 0);
+                    }
+                }
+
                 return {
                     subject: m.subject,
                     nisfi,
@@ -329,6 +384,158 @@ const publishExam = asyncHandler(async (req, res) => {
     res.json(populated);
 });
 
+// Class Cumulative Broadsheet (Merges Mid-Term + Final into 100 for all subjects)
+const getClassBroadsheet = asyncHandler(async (req, res) => {
+    const { classId } = req.params;
+    const { term, academicYear } = req.query;
+
+    const classDoc = await Class.findById(classId).populate('branchId', 'name').lean();
+    if (!classDoc) {
+        res.status(404);
+        throw new Error('Class not found');
+    }
+
+    const examQuery = { classId };
+    if (term) examQuery.term = term;
+    if (academicYear) examQuery.academicYear = academicYear;
+
+    const exams = await Exam.find(examQuery).lean();
+    const midTermExam = exams.find((e) => e.examType === 'Mid-Term');
+    const finalExam = exams.find((e) => e.examType === 'Final');
+    const combinedExam = exams.find((e) => e.examType === 'Combined');
+
+    let subjects = [];
+    if (midTermExam?.subjects?.length) {
+        subjects = midTermExam.subjects;
+    } else if (finalExam?.subjects?.length) {
+        subjects = finalExam.subjects;
+    } else if (combinedExam?.subjects?.length) {
+        subjects = combinedExam.subjects;
+    } else {
+        const subDocs = await Subject.find({ classIds: classId, status: 'Active' }).lean();
+        subjects = subDocs.map((s) => ({
+            name: s.name,
+            nisfiFullMarks: s.nisfiFullMarks || 40,
+            nihaayiFullMarks: s.nihaayiFullMarks || 60,
+            fullMarks: s.fullMarks || 100,
+            passMarks: s.passMarks || 40
+        }));
+    }
+
+    const students = await classStudents(classId);
+    const examIds = exams.map((e) => e._id);
+    const allResults = await ExamResult.find({ examId: { $in: examIds } }).lean();
+
+    const resultsByStudentExam = new Map();
+    allResults.forEach((r) => {
+        resultsByStudentExam.set(`${r.studentId}_${r.examId}`, r);
+    });
+
+    const totalFull = subjects.reduce((sum, s) => sum + Number(s.fullMarks || 100), 0);
+
+    const rows = students.map((s) => {
+        let totalObtained = 0;
+        let failedSubjects = 0;
+        let entered = false;
+
+        const midResult = midTermExam ? resultsByStudentExam.get(`${s._id}_${midTermExam._id}`) : null;
+        const finalResult = finalExam ? resultsByStudentExam.get(`${s._id}_${finalExam._id}`) : null;
+        const combResult = combinedExam ? resultsByStudentExam.get(`${s._id}_${combinedExam._id}`) : null;
+
+        if (midResult || finalResult || combResult) entered = true;
+
+        const midMap = new Map((midResult?.marks || []).map((m) => [m.subject, m]));
+        const finalMap = new Map((finalResult?.marks || []).map((m) => [m.subject, m]));
+        const combMap = new Map((combResult?.marks || []).map((m) => [m.subject, m]));
+
+        const subjectResults = subjects.map((sub) => {
+            const mM = midMap.get(sub.name);
+            const fM = finalMap.get(sub.name);
+            const cM = combMap.get(sub.name);
+
+            let nisfi = 0;
+            let nihaayi = 0;
+
+            if (mM) nisfi = Number(mM.nisfi ?? mM.marksObtained ?? 0);
+            if (fM) nihaayi = Number(fM.nihaayi ?? fM.marksObtained ?? 0);
+            if (cM) {
+                if (!mM) nisfi = Number(cM.nisfi ?? 0);
+                if (!fM) nihaayi = Number(cM.nihaayi ?? 0);
+            }
+
+            const obtained = nisfi + nihaayi;
+            const full = Number(sub.fullMarks || 100);
+            const pass = Number(sub.passMarks || 40);
+            const passed = obtained >= pass;
+            if (entered && !passed) failedSubjects += 1;
+            totalObtained += obtained;
+
+            return {
+                subject: sub.name,
+                nisfi,
+                nihaayi,
+                nisfiFullMarks: Number(sub.nisfiFullMarks || 40),
+                nihaayiFullMarks: Number(sub.nihaayiFullMarks || 60),
+                fullMarks: full,
+                passMarks: pass,
+                marksObtained: obtained,
+                passed
+            };
+        });
+
+        const percentage = totalFull > 0 ? round1((totalObtained / totalFull) * 100) : 0;
+        const average = subjects.length > 0 ? round1(totalObtained / subjects.length) : 0;
+        const { grade, point } = gradeFor(percentage);
+
+        return {
+            studentId: s._id,
+            studentName: s.fullName,
+            rollNumber: s.rollNumber || s.studentCode || '',
+            entered,
+            subjects: subjectResults,
+            totalObtained,
+            totalFull,
+            percentage,
+            average,
+            grade: entered ? grade : '-',
+            point: entered ? point : 0,
+            status: entered ? (failedSubjects > 0 ? 'Fail' : 'Pass') : 'Pending'
+        };
+    });
+
+    const ranked = rows.filter((r) => r.entered).sort((a, b) => b.totalObtained - a.totalObtained);
+    let lastScore = null;
+    let lastRank = 0;
+    ranked.forEach((r, i) => {
+        if (r.totalObtained === lastScore) {
+            r.position = lastRank;
+        } else {
+            r.position = i + 1;
+            lastRank = i + 1;
+            lastScore = r.totalObtained;
+        }
+    });
+
+    const gradedRows = rows.filter((r) => r.entered);
+    const summary = {
+        totalStudents: students.length,
+        graded: gradedRows.length,
+        passed: gradedRows.filter((r) => r.status === 'Pass').length,
+        failed: gradedRows.filter((r) => r.status === 'Fail').length,
+        avgPercentage: gradedRows.length ? round1(gradedRows.reduce((sum, r) => sum + r.percentage, 0) / gradedRows.length) : 0,
+        topper: ranked[0] ? { studentName: ranked[0].studentName, percentage: ranked[0].percentage } : null,
+        totalFull
+    };
+
+    res.json({
+        class: classDoc,
+        subjects,
+        exams: { midTerm: midTermExam, final: finalExam, combined: combinedExam },
+        results: rows,
+        summary
+    });
+});
+
 module.exports = {
     getExams,
     getExamById,
@@ -338,5 +545,6 @@ module.exports = {
     getExamResults,
     saveExamResults,
     getStudentResult,
-    publishExam
+    publishExam,
+    getClassBroadsheet
 };

@@ -8,7 +8,7 @@ import { useAlert } from '../components/common/alerts/useAlert';
 import { classLabel } from '../utils/classLabel';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 
-const EXAM_TYPES = ['Weekly', 'Monthly', 'Mid-Term', 'Final', 'Quiz'];
+const EXAM_TYPES = ['Mid-Term', 'Final', 'Combined', 'Monthly', 'Weekly', 'Quiz'];
 
 const emptyForm = () => ({
   title: '',
@@ -136,36 +136,91 @@ const ExamsManagement = () => {
     setIsModalOpen(true);
   };
 
+  const handleExamTypeChange = (newType) => {
+    setForm(prev => {
+      const subjects = prev.subjects.map(s => {
+        const n = Number(s.nisfiFullMarks) || 40;
+        const f = Number(s.nihaayiFullMarks) || 60;
+        let tot = 100;
+        let pass = Number(s.passMarks) || 40;
+        if (newType === 'Mid-Term') {
+          tot = n;
+          pass = Math.min(pass, Math.round(n * 0.4));
+        } else if (newType === 'Final') {
+          tot = f;
+          pass = Math.min(pass, Math.round(f * 0.4));
+        } else if (newType === 'Combined') {
+          tot = n + f;
+          pass = 40;
+        }
+        return { ...s, fullMarks: tot, passMarks: pass };
+      });
+      return { ...prev, examType: newType, subjects };
+    });
+  };
+
   const setSubject = (idx, key, value) => {
     setForm(prev => {
       const subjects = [...prev.subjects];
       const cur = { ...subjects[idx], [key]: value };
-      if (key === 'nisfiFullMarks' || key === 'nihaayiFullMarks') {
-        const n = key === 'nisfiFullMarks' ? Number(value) || 0 : Number(cur.nisfiFullMarks) || 0;
-        const f = key === 'nihaayiFullMarks' ? Number(value) || 0 : Number(cur.nihaayiFullMarks) || 0;
-        cur.fullMarks = n + f;
+      const numVal = Math.max(0, Number(value) || 0);
+
+      if (prev.examType === 'Mid-Term') {
+        if (key === 'nisfiFullMarks') {
+          cur.nisfiFullMarks = numVal;
+          cur.fullMarks = numVal;
+        }
+      } else if (prev.examType === 'Final') {
+        if (key === 'nihaayiFullMarks') {
+          cur.nihaayiFullMarks = numVal;
+          cur.fullMarks = numVal;
+        }
+      } else {
+        if (key === 'nisfiFullMarks' || key === 'nihaayiFullMarks') {
+          const n = key === 'nisfiFullMarks' ? numVal : Number(cur.nisfiFullMarks) || 0;
+          const f = key === 'nihaayiFullMarks' ? numVal : Number(cur.nihaayiFullMarks) || 0;
+          cur.fullMarks = n + f;
+        }
       }
       subjects[idx] = cur;
       return { ...prev, subjects };
     });
   };
-  const addSubject = () => setForm(prev => ({
-    ...prev,
-    subjects: [...prev.subjects, { name: '', nisfiFullMarks: 40, nihaayiFullMarks: 60, fullMarks: 100, passMarks: 40 }]
-  }));
+  const addSubject = () => setForm(prev => {
+    const isMT = prev.examType === 'Mid-Term';
+    const isF = prev.examType === 'Final';
+    const n = 40;
+    const f = 60;
+    const tot = isMT ? n : isF ? f : 100;
+    const pass = isMT ? 16 : isF ? 24 : 40;
+    return {
+      ...prev,
+      subjects: [...prev.subjects, { name: '', nisfiFullMarks: n, nihaayiFullMarks: f, fullMarks: tot, passMarks: pass }]
+    };
+  });
   const removeSubject = (idx) => setForm(prev => ({ ...prev, subjects: prev.subjects.filter((_, i) => i !== idx) }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) return showAlert({ type: 'warning', title: t('exams.manage.validation'), message: t('exams.manage.titleRequired') });
     if (!form.classId) return showAlert({ type: 'warning', title: t('exams.manage.validation'), message: t('exams.manage.classRequired') });
+    const isMT = form.examType === 'Mid-Term';
+    const isF = form.examType === 'Final';
+
     const subjects = form.subjects
       .filter(s => s.name.trim())
       .map(s => {
         const nisfiFullMarks = Math.max(0, Number(s.nisfiFullMarks) || 40);
         const nihaayiFullMarks = Math.max(0, Number(s.nihaayiFullMarks) || 60);
-        const fullMarks = Number(s.fullMarks) || (nisfiFullMarks + nihaayiFullMarks);
-        const passMarks = Math.max(0, Number(s.passMarks) || 40);
+        let fullMarks = Number(s.fullMarks);
+        if (isMT) {
+          fullMarks = nisfiFullMarks;
+        } else if (isF) {
+          fullMarks = nihaayiFullMarks;
+        } else if (!fullMarks) {
+          fullMarks = nisfiFullMarks + nihaayiFullMarks;
+        }
+        const passMarks = Math.max(0, Number(s.passMarks) || (isMT ? 16 : isF ? 24 : 40));
         return {
           name: s.name.trim(),
           nisfiFullMarks,
@@ -328,8 +383,8 @@ const ExamsManagement = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-black uppercase text-slate-500 mb-1">{t('exams.manage.typeLabel')}</label>
-                    <select value={form.examType} onChange={e => setForm({ ...form, examType: e.target.value })} className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white">
-                      {EXAM_TYPES.map(type => <option key={type} value={type}>{tv(type)}</option>)}
+                    <select value={form.examType} onChange={e => handleExamTypeChange(e.target.value)} className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white font-bold">
+                      {EXAM_TYPES.map(type => <option key={type} value={type}>{tv(type) || type}</option>)}
                     </select>
                   </div>
                   <div>
@@ -425,24 +480,82 @@ const ExamsManagement = () => {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <div className="grid grid-cols-[1fr,90px,90px,90px,90px,36px] gap-2 px-1">
-                      <span className="text-[10px] font-black uppercase text-slate-400">{t('exams.manage.subjectName')}</span>
-                      <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('nisfiShort')}</span>
-                      <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('nihaayiShort')}</span>
-                      <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('common.total')}</span>
-                      <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('exams.manage.passMarks')}</span>
-                      <span></span>
-                    </div>
-                    {form.subjects.map((s, idx) => (
-                      <div key={idx} className="grid grid-cols-[1fr,90px,90px,90px,90px,36px] gap-2 items-center">
-                        <input value={s.name} onChange={e => setSubject(idx, 'name', e.target.value)} placeholder={t('exams.manage.subjectPlaceholder')} className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-slate-900 dark:text-white" />
-                        <input type="number" min="0" value={s.nisfiFullMarks} onChange={e => setSubject(idx, 'nisfiFullMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white font-bold" />
-                        <input type="number" min="0" value={s.nihaayiFullMarks} onChange={e => setSubject(idx, 'nihaayiFullMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white font-bold" />
-                        <input type="number" min="1" readOnly value={s.fullMarks} className="px-2 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-600 dark:text-slate-300 font-black cursor-not-allowed" />
-                        <input type="number" min="0" value={s.passMarks} onChange={e => setSubject(idx, 'passMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white" />
-                        <button type="button" onClick={() => removeSubject(idx)} disabled={form.subjects.length === 1} className="p-2 rounded-xl text-slate-400 hover:text-rose-500 disabled:opacity-30"><Trash2 size={16} /></button>
+                    {/* Header based on examType */}
+                    {form.examType === 'Mid-Term' ? (
+                      <div className="grid grid-cols-[1fr,130px,110px,36px] gap-2 px-1">
+                        <span className="text-[10px] font-black uppercase text-slate-400">{t('exams.manage.subjectName')}</span>
+                        <span className="text-[10px] font-black uppercase text-brand-600 dark:text-brand-400 text-center">Dhibcaha Dhexe (Nisfi)</span>
+                        <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('exams.manage.passMarks')}</span>
+                        <span></span>
                       </div>
-                    ))}
+                    ) : form.examType === 'Final' ? (
+                      <div className="grid grid-cols-[1fr,130px,110px,36px] gap-2 px-1">
+                        <span className="text-[10px] font-black uppercase text-slate-400">{t('exams.manage.subjectName')}</span>
+                        <span className="text-[10px] font-black uppercase text-brand-600 dark:text-brand-400 text-center">Dhibcaha Dhammaadka (Nihaayi)</span>
+                        <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('exams.manage.passMarks')}</span>
+                        <span></span>
+                      </div>
+                    ) : form.examType === 'Combined' ? (
+                      <div className="grid grid-cols-[1fr,90px,90px,90px,90px,36px] gap-2 px-1">
+                        <span className="text-[10px] font-black uppercase text-slate-400">{t('exams.manage.subjectName')}</span>
+                        <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('nisfiShort')}</span>
+                        <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('nihaayiShort')}</span>
+                        <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('common.total')}</span>
+                        <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('exams.manage.passMarks')}</span>
+                        <span></span>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-[1fr,130px,110px,36px] gap-2 px-1">
+                        <span className="text-[10px] font-black uppercase text-slate-400">{t('exams.manage.subjectName')}</span>
+                        <span className="text-[10px] font-black uppercase text-slate-400 text-center">Wadarta Dhibcaha</span>
+                        <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('exams.manage.passMarks')}</span>
+                        <span></span>
+                      </div>
+                    )}
+
+                    {/* Rows */}
+                    {form.subjects.map((s, idx) => {
+                      if (form.examType === 'Mid-Term') {
+                        return (
+                          <div key={idx} className="grid grid-cols-[1fr,130px,110px,36px] gap-2 items-center">
+                            <input value={s.name} onChange={e => setSubject(idx, 'name', e.target.value)} placeholder={t('exams.manage.subjectPlaceholder')} className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-slate-900 dark:text-white" />
+                            <input type="number" min="0" value={s.nisfiFullMarks} onChange={e => setSubject(idx, 'nisfiFullMarks', e.target.value)} placeholder="40" className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white font-bold" />
+                            <input type="number" min="0" value={s.passMarks} onChange={e => setSubject(idx, 'passMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white" />
+                            <button type="button" onClick={() => removeSubject(idx)} disabled={form.subjects.length === 1} className="p-2 rounded-xl text-slate-400 hover:text-rose-500 disabled:opacity-30"><Trash2 size={16} /></button>
+                          </div>
+                        );
+                      }
+                      if (form.examType === 'Final') {
+                        return (
+                          <div key={idx} className="grid grid-cols-[1fr,130px,110px,36px] gap-2 items-center">
+                            <input value={s.name} onChange={e => setSubject(idx, 'name', e.target.value)} placeholder={t('exams.manage.subjectPlaceholder')} className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-slate-900 dark:text-white" />
+                            <input type="number" min="0" value={s.nihaayiFullMarks} onChange={e => setSubject(idx, 'nihaayiFullMarks', e.target.value)} placeholder="60" className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white font-bold" />
+                            <input type="number" min="0" value={s.passMarks} onChange={e => setSubject(idx, 'passMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white" />
+                            <button type="button" onClick={() => removeSubject(idx)} disabled={form.subjects.length === 1} className="p-2 rounded-xl text-slate-400 hover:text-rose-500 disabled:opacity-30"><Trash2 size={16} /></button>
+                          </div>
+                        );
+                      }
+                      if (form.examType === 'Combined') {
+                        return (
+                          <div key={idx} className="grid grid-cols-[1fr,90px,90px,90px,90px,36px] gap-2 items-center">
+                            <input value={s.name} onChange={e => setSubject(idx, 'name', e.target.value)} placeholder={t('exams.manage.subjectPlaceholder')} className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-slate-900 dark:text-white" />
+                            <input type="number" min="0" value={s.nisfiFullMarks} onChange={e => setSubject(idx, 'nisfiFullMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white font-bold" />
+                            <input type="number" min="0" value={s.nihaayiFullMarks} onChange={e => setSubject(idx, 'nihaayiFullMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white font-bold" />
+                            <input type="number" min="1" readOnly value={s.fullMarks} className="px-2 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-600 dark:text-slate-300 font-black cursor-not-allowed" />
+                            <input type="number" min="0" value={s.passMarks} onChange={e => setSubject(idx, 'passMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white" />
+                            <button type="button" onClick={() => removeSubject(idx)} disabled={form.subjects.length === 1} className="p-2 rounded-xl text-slate-400 hover:text-rose-500 disabled:opacity-30"><Trash2 size={16} /></button>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={idx} className="grid grid-cols-[1fr,130px,110px,36px] gap-2 items-center">
+                          <input value={s.name} onChange={e => setSubject(idx, 'name', e.target.value)} placeholder={t('exams.manage.subjectPlaceholder')} className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-slate-900 dark:text-white" />
+                          <input type="number" min="0" value={s.fullMarks} onChange={e => setSubject(idx, 'fullMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white font-bold" />
+                          <input type="number" min="0" value={s.passMarks} onChange={e => setSubject(idx, 'passMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white" />
+                          <button type="button" onClick={() => removeSubject(idx)} disabled={form.subjects.length === 1} className="p-2 rounded-xl text-slate-400 hover:text-rose-500 disabled:opacity-30"><Trash2 size={16} /></button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 

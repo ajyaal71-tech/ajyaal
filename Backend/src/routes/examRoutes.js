@@ -9,13 +9,16 @@ const {
     getExamResults,
     saveExamResults,
     getStudentResult,
-    publishExam
+    publishExam,
+    getClassBroadsheet
 } = require('../controllers/examController');
 const { protect } = require('../middleware/authMiddleware');
 
 router.route('/')
     .get(protect, getExams)
     .post(protect, createExam);
+
+router.get('/class/:classId/broadsheet', protect, getClassBroadsheet);
 
 router.route('/:id')
     .get(protect, getExamById)

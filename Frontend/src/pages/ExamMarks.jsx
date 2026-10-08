@@ -32,6 +32,7 @@ const ExamMarks = () => {
   const [activeSubject, setActiveSubject] = useState(null);
   const [printModalOpen, setPrintModalOpen] = useState(false);
   const [printBlank, setPrintBlank] = useState(false);
+  const [showAllParts, setShowAllParts] = useState(false);
 
   // Load initial settings, classes, exams, and branches
   useEffect(() => {
@@ -198,6 +199,12 @@ const ExamMarks = () => {
   }, [selectedExamId]);
 
   const subjects = exam?.subjects || [];
+  const isMidTerm = exam?.examType === 'Mid-Term';
+  const isFinal = exam?.examType === 'Final';
+  const isCombined = exam?.examType === 'Combined';
+
+  const showNisfi = isMidTerm || isCombined || showAllParts || (!isMidTerm && !isFinal);
+  const showNihaayi = isFinal || isCombined || showAllParts || (!isMidTerm && !isFinal);
 
   // Update mark for a specific student and subject (nisfi or nihaayi)
   const setScore = (studentId, subjectName, part, val) => {
@@ -207,7 +214,15 @@ const ExamMarks = () => {
       const nextSub = { ...prevSub, [part]: val };
       const n = Number(nextSub.nisfi) || 0;
       const f = Number(nextSub.nihaayi) || 0;
-      nextSub.marksObtained = (nextSub.nisfi !== '' || nextSub.nihaayi !== '') ? (n + f) : 0;
+
+      if (isMidTerm && !showAllParts) {
+        nextSub.marksObtained = nextSub.nisfi !== '' ? n : 0;
+      } else if (isFinal && !showAllParts) {
+        nextSub.marksObtained = nextSub.nihaayi !== '' ? f : 0;
+      } else {
+        nextSub.marksObtained = (nextSub.nisfi !== '' || nextSub.nihaayi !== '') ? (n + f) : 0;
+      }
+
       return {
         ...r,
         marks: {
@@ -230,6 +245,18 @@ const ExamMarks = () => {
     return subjects.find(s => s.name === activeSubject) || subjects[0] || null;
   }, [subjects, activeSubject]);
 
+  const currentSubMax = isMidTerm && !showAllParts
+    ? (currentSubjectObj?.nisfiFullMarks || 40)
+    : isFinal && !showAllParts
+      ? (currentSubjectObj?.nihaayiFullMarks || 60)
+      : (currentSubjectObj?.fullMarks || 100);
+
+  const currentSubPass = isMidTerm && !showAllParts
+    ? Math.min(Number(currentSubjectObj?.passMarks || 16), Number(currentSubjectObj?.nisfiFullMarks || 40))
+    : isFinal && !showAllParts
+      ? Math.min(Number(currentSubjectObj?.passMarks || 24), Number(currentSubjectObj?.nihaayiFullMarks || 60))
+      : Number(currentSubjectObj?.passMarks || 40);
+
   const studentTotalScore = (r) => {
     if (r.absent) return 0;
     return subjects.reduce((sum, s) => {
@@ -239,8 +266,15 @@ const ExamMarks = () => {
   };
 
   const totalFullMarks = useMemo(() => {
-    return subjects.reduce((sum, s) => sum + Number(s.fullMarks || 0), 0);
-  }, [subjects]);
+    return subjects.reduce((sum, s) => {
+      const full = isMidTerm && !showAllParts
+        ? Number(s.nisfiFullMarks || 40)
+        : isFinal && !showAllParts
+          ? Number(s.nihaayiFullMarks || 60)
+          : Number(s.fullMarks || 100);
+      return sum + full;
+    }, 0);
+  }, [subjects, isMidTerm, isFinal, showAllParts]);
 
   const hasInput = (r) => {
     if (r.entered || r.absent || r.remarks.trim()) return true;
@@ -293,11 +327,18 @@ const ExamMarks = () => {
         const sm = r.marks[s.name] || {};
         const nisfi = r.absent ? 0 : (Number(sm.nisfi) || 0);
         const nihaayi = r.absent ? 0 : (Number(sm.nihaayi) || 0);
-        const marksObtained = r.absent
-          ? 0
-          : (sm.nisfi !== '' || sm.nihaayi !== '')
-            ? (nisfi + nihaayi)
-            : (Number(sm.marksObtained) || 0);
+        let marksObtained = 0;
+        if (!r.absent) {
+          if (isMidTerm && !showAllParts) {
+            marksObtained = sm.nisfi !== '' ? nisfi : 0;
+          } else if (isFinal && !showAllParts) {
+            marksObtained = sm.nihaayi !== '' ? nihaayi : 0;
+          } else {
+            marksObtained = (sm.nisfi !== '' || sm.nihaayi !== '')
+              ? (nisfi + nihaayi)
+              : (Number(sm.marksObtained) || 0);
+          }
+        }
         return {
           subject: s.name,
           nisfi: r.absent ? 0 : nisfi,
@@ -392,10 +433,10 @@ const ExamMarks = () => {
     const x0 = 14;
     const tableW = pageW - 28;
     const idW = 22;
-    const nameW = 75;
-    const nisfiW = 28;
-    const nihaayiW = 28;
-    const totW = tableW - (idW + nameW + nisfiW + nihaayiW);
+    const nameW = (showNisfi && showNihaayi) ? 75 : 100;
+    const nisfiW = 30;
+    const nihaayiW = 30;
+    const totW = (showNisfi && showNihaayi) ? tableW - (idW + nameW + nisfiW + nihaayiW) : tableW - (idW + nameW + 35);
 
     doc.setFillColor(30, 41, 59);
     doc.rect(x0, y - 5, tableW, 9, 'F');
@@ -405,9 +446,18 @@ const ExamMarks = () => {
 
     doc.text('ID', x0 + 4, y);
     doc.text('NAME', x0 + idW + 4, y);
-    doc.text(`NISFI (${nisfiMax})`, x0 + idW + nameW + nisfiW / 2, y, { align: 'center' });
-    doc.text(`NIHAAYI (${nihaayiMax})`, x0 + idW + nameW + nisfiW + nihaayiW / 2, y, { align: 'center' });
-    doc.text(`TOTAL (${totalMax})`, x0 + idW + nameW + nisfiW + nihaayiW + totW / 2, y, { align: 'center' });
+
+    if (showNisfi && showNihaayi) {
+      doc.text(`NISFI (${nisfiMax})`, x0 + idW + nameW + nisfiW / 2, y, { align: 'center' });
+      doc.text(`NIHAAYI (${nihaayiMax})`, x0 + idW + nameW + nisfiW + nihaayiW / 2, y, { align: 'center' });
+      doc.text(`TOTAL (${totalMax})`, x0 + idW + nameW + nisfiW + nihaayiW + totW / 2, y, { align: 'center' });
+    } else if (showNisfi) {
+      doc.text(`NISFI (${nisfiMax})`, x0 + idW + nameW + 35 / 2, y, { align: 'center' });
+      doc.text('REMARKS', x0 + idW + nameW + 35 + totW / 2, y, { align: 'center' });
+    } else {
+      doc.text(`NIHAAYI (${nihaayiMax})`, x0 + idW + nameW + 35 / 2, y, { align: 'center' });
+      doc.text('REMARKS', x0 + idW + nameW + 35 + totW / 2, y, { align: 'center' });
+    }
 
     y += 7;
 
@@ -421,13 +471,11 @@ const ExamMarks = () => {
         y = 20;
       }
 
-      // Zebra background
       if (idx % 2 === 0) {
         doc.setFillColor(248, 250, 252);
         doc.rect(x0, y - 4, tableW, 7, 'F');
       }
 
-      // Border line
       doc.setDrawColor(226, 232, 240);
       doc.line(x0, y + 3, x0 + tableW, y + 3);
 
@@ -443,12 +491,23 @@ const ExamMarks = () => {
       doc.setFont('helvetica', 'normal');
       doc.text(nameVal.slice(0, 35), x0 + idW + 4, y);
 
-      doc.text(String(nisfiVal), x0 + idW + nameW + nisfiW / 2, y, { align: 'center' });
-      doc.text(String(nihaayiVal), x0 + idW + nameW + nisfiW + nihaayiW / 2, y, { align: 'center' });
-
-      doc.setFont('helvetica', 'bold');
-      doc.text(String(totalVal), x0 + idW + nameW + nisfiW + nihaayiW + totW / 2, y, { align: 'center' });
-      doc.setFont('helvetica', 'normal');
+      if (showNisfi && showNihaayi) {
+        doc.text(String(nisfiVal), x0 + idW + nameW + nisfiW / 2, y, { align: 'center' });
+        doc.text(String(nihaayiVal), x0 + idW + nameW + nisfiW + nihaayiW / 2, y, { align: 'center' });
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(totalVal), x0 + idW + nameW + nisfiW + nihaayiW + totW / 2, y, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+      } else if (showNisfi) {
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(nisfiVal), x0 + idW + nameW + 35 / 2, y, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        doc.text(r.remarks || '', x0 + idW + nameW + 40, y);
+      } else {
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(nihaayiVal), x0 + idW + nameW + 35 / 2, y, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        doc.text(r.remarks || '', x0 + idW + nameW + 40, y);
+      }
 
       y += 7;
     });
@@ -661,22 +720,31 @@ const ExamMarks = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setPrintBlank(true); setPrintModalOpen(true); }}
-                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all"
-                  >
-                    {t('printBlankSheet')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setPrintBlank(false); setPrintModalOpen(true); }}
-                    className="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-brand-600/20"
-                  >
-                    {t('printTeacherSheet')}
-                  </button>
-                </div>
+                  <div className="flex items-center gap-2">
+                    {(isMidTerm || isFinal) && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllParts(prev => !prev)}
+                        className="px-3.5 py-2.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750 transition shadow-sm"
+                      >
+                        {showAllParts ? 'Kaliya Dhibcaha Imtixaankan' : 'Muuji Labadaba (Nisfi + Nihaayi)'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setPrintBlank(true); setPrintModalOpen(true); }}
+                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all"
+                    >
+                      {t('printBlankSheet')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setPrintBlank(false); setPrintModalOpen(true); }}
+                      className="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-brand-600/20"
+                    >
+                      {t('printTeacherSheet')}
+                    </button>
+                  </div>
               </div>
 
               {/* Table exact match to Image 1: Id | Name | Nisfi | Nihaayi | Total */}
@@ -687,22 +755,32 @@ const ExamMarks = () => {
                       <th className="px-5 py-4 w-12 text-center">#</th>
                       <th className="px-5 py-4 w-28">Id</th>
                       <th className="px-6 py-4">Name</th>
-                      <th className="px-4 py-4 text-center w-36">
-                        {t('nisfiShort')}
-                        <span className="block text-[9px] text-brand-300 font-normal">
-                          Max: {currentSubjectObj.nisfiFullMarks || 40}
-                        </span>
-                      </th>
-                      <th className="px-4 py-4 text-center w-36">
-                        {t('nihaayiShort')}
-                        <span className="block text-[9px] text-brand-300 font-normal">
-                          Max: {currentSubjectObj.nihaayiFullMarks || 60}
-                        </span>
-                      </th>
+                      {showNisfi && (
+                        <th className="px-4 py-4 text-center w-36">
+                          {t('nisfiShort')}
+                          <span className="block text-[9px] text-brand-300 font-normal">
+                            Max: {currentSubjectObj.nisfiFullMarks || 40}
+                          </span>
+                        </th>
+                      )}
+                      {showNihaayi && (
+                        <th className="px-4 py-4 text-center w-36">
+                          {t('nihaayiShort')}
+                          <span className="block text-[9px] text-brand-300 font-normal">
+                            Max: {currentSubjectObj.nihaayiFullMarks || 60}
+                          </span>
+                        </th>
+                      )}
                       <th className="px-5 py-4 text-center w-32 bg-slate-800/80">
-                        {t('common.total')}
+                        {showAllParts || isCombined
+                          ? t('common.total')
+                          : isMidTerm
+                            ? 'Dhibcaha (Nisfi)'
+                            : isFinal
+                              ? 'Dhibcaha (Nihaayi)'
+                              : t('common.total')}
                         <span className="block text-[9px] text-emerald-400 font-normal">
-                          Max: {currentSubjectObj.fullMarks || 100}
+                          Max: {currentSubMax}
                         </span>
                       </th>
                       <th className="px-4 py-4 text-center w-24">{tv('Absent')}</th>
@@ -732,36 +810,40 @@ const ExamMarks = () => {
                               {r.studentName}
                             </p>
                           </td>
-                          <td className="px-4 py-3.5 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              max={maxNisfi}
-                              disabled={r.absent}
-                              value={sm.nisfi ?? ''}
-                              onChange={e => setScore(r.studentId, currentSubjectObj.name, 'nisfi', e.target.value)}
-                              placeholder={`0 - ${maxNisfi}`}
-                              className="w-24 px-3 py-2 text-center rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 disabled:opacity-40"
-                            />
-                          </td>
-                          <td className="px-4 py-3.5 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              max={maxNihaayi}
-                              disabled={r.absent}
-                              value={sm.nihaayi ?? ''}
-                              onChange={e => setScore(r.studentId, currentSubjectObj.name, 'nihaayi', e.target.value)}
-                              placeholder={`0 - ${maxNihaayi}`}
-                              className="w-24 px-3 py-2 text-center rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 disabled:opacity-40"
-                            />
-                          </td>
+                          {showNisfi && (
+                            <td className="px-4 py-3.5 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max={maxNisfi}
+                                disabled={r.absent}
+                                value={sm.nisfi ?? ''}
+                                onChange={e => setScore(r.studentId, currentSubjectObj.name, 'nisfi', e.target.value)}
+                                placeholder={`0 - ${maxNisfi}`}
+                                className="w-24 px-3 py-2 text-center rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 disabled:opacity-40"
+                              />
+                            </td>
+                          )}
+                          {showNihaayi && (
+                            <td className="px-4 py-3.5 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max={maxNihaayi}
+                                disabled={r.absent}
+                                value={sm.nihaayi ?? ''}
+                                onChange={e => setScore(r.studentId, currentSubjectObj.name, 'nihaayi', e.target.value)}
+                                placeholder={`0 - ${maxNihaayi}`}
+                                className="w-24 px-3 py-2 text-center rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 disabled:opacity-40"
+                              />
+                            </td>
+                          )}
                           <td className="px-5 py-3.5 text-center bg-slate-50/60 dark:bg-slate-800/40">
                             <span
                               className={`inline-block px-3 py-1.5 rounded-xl text-sm font-black ${
                                 r.absent
                                   ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
-                                  : totalSub >= (currentSubjectObj.passMarks || 40)
+                                  : totalSub >= currentSubPass
                                     ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                                     : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                               }`}

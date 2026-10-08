@@ -16,7 +16,7 @@ const examSchema = new mongoose.Schema({
     },
     examType: {
         type: String,
-        enum: ['Weekly', 'Monthly', 'Mid-Term', 'Final', 'Quiz'],
+        enum: ['Weekly', 'Monthly', 'Mid-Term', 'Final', 'Quiz', 'Combined'],
         default: 'Mid-Term'
     },
     classId: {
