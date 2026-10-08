@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   BookOpen, Plus, Search, Edit2, Trash2, CheckCircle2, XCircle,
   Users, Layers, GraduationCap, Award, SlidersHorizontal, Loader2,
-  X, Check, AlertCircle, FileText, Sparkles
+  X, Check, AlertCircle, FileText, Sparkles, Building2
 } from 'lucide-react';
 import api from '../services/api';
 import { useAlert } from '../components/common/alerts/useAlert';
@@ -29,15 +29,18 @@ const SubjectsManagement = () => {
   const [subjects, setSubjects] = useState([]);
   const [classes, setClasses] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Search & Filter
   const [search, setSearch] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalBranchFilter, setModalBranchFilter] = useState('');
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
@@ -45,14 +48,30 @@ const SubjectsManagement = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [resSubjects, resClasses, resUsers] = await Promise.all([
+      const [resSubjects, resClasses, resUsers, resBranches] = await Promise.all([
         api.get('/subjects'),
         api.get('/classes'),
-        api.get('/users').catch(() => ({ data: [] }))
+        api.get('/users').catch(() => ({ data: [] })),
+        api.get('/branches').catch(() => ({ data: [] }))
       ]);
 
+      const classesData = resClasses.data || [];
+      let branchesData = resBranches?.data || [];
+
+      // Fallback: derive unique branches from classes if branches endpoint was empty
+      if (!branchesData.length) {
+        const branchMap = new Map();
+        classesData.forEach(c => {
+          if (c.branchId && typeof c.branchId === 'object' && c.branchId._id) {
+            branchMap.set(String(c.branchId._id), c.branchId);
+          }
+        });
+        branchesData = Array.from(branchMap.values());
+      }
+
       setSubjects(resSubjects.data || []);
-      setClasses(resClasses.data || []);
+      setClasses(classesData);
+      setBranches(branchesData);
 
       // Filter teachers from users
       const usersList = resUsers.data || [];
@@ -77,12 +96,14 @@ const SubjectsManagement = () => {
 
   const openAdd = () => {
     setEditing(null);
+    setModalBranchFilter('');
     setForm(emptyForm());
     setIsModalOpen(true);
   };
 
   const openEdit = (sub) => {
     setEditing(sub);
+    setModalBranchFilter('');
     setForm({
       name: sub.name || '',
       code: sub.code || '',
@@ -123,11 +144,48 @@ const SubjectsManagement = () => {
     });
   };
 
-  const selectAllClasses = () => {
-    if (form.classIds.length === classes.length) {
-      setForm(prev => ({ ...prev, classIds: [] }));
+  // Filter classes shown in the modal by the modal's branch selector
+  const modalVisibleClasses = useMemo(() => {
+    if (!modalBranchFilter) return classes;
+    return classes.filter(c => {
+      const bId = c.branchId?._id || c.branchId;
+      return String(bId) === modalBranchFilter;
+    });
+  }, [classes, modalBranchFilter]);
+
+  const selectAllModalClasses = () => {
+    const visibleIds = modalVisibleClasses.map(c => c._id);
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => form.classIds.includes(id));
+    if (allVisibleSelected) {
+      setForm(prev => ({
+        ...prev,
+        classIds: prev.classIds.filter(id => !visibleIds.includes(id))
+      }));
     } else {
-      setForm(prev => ({ ...prev, classIds: classes.map(c => c._id) }));
+      setForm(prev => ({
+        ...prev,
+        classIds: Array.from(new Set([...prev.classIds, ...visibleIds]))
+      }));
+    }
+  };
+
+  // Main page classes dropdown options filtered by branchFilter
+  const filterDropdownClasses = useMemo(() => {
+    if (!branchFilter) return classes;
+    return classes.filter(c => {
+      const bId = c.branchId?._id || c.branchId;
+      return String(bId) === branchFilter;
+    });
+  }, [classes, branchFilter]);
+
+  const handleBranchFilterChange = (newBranchId) => {
+    setBranchFilter(newBranchId);
+    if (newBranchId && classFilter) {
+      const match = classes.find(c => c._id === classFilter);
+      const bId = match?.branchId?._id || match?.branchId;
+      if (String(bId) !== newBranchId) {
+        setClassFilter('');
+      }
     }
   };
 
@@ -198,12 +256,17 @@ const SubjectsManagement = () => {
         (s.code || '').toLowerCase().includes(search.toLowerCase()) ||
         (s.description || '').toLowerCase().includes(search.toLowerCase());
 
+      const matchBranch = !branchFilter || (s.classIds || []).some(c => {
+        const bId = c.branchId?._id || c.branchId;
+        return String(bId) === branchFilter;
+      });
+
       const matchClass = !classFilter || (s.classIds || []).some(c => (c._id || c) === classFilter);
       const matchStatus = !statusFilter || s.status === statusFilter;
 
-      return matchSearch && matchClass && matchStatus;
+      return matchSearch && matchBranch && matchClass && matchStatus;
     });
-  }, [subjects, search, classFilter, statusFilter]);
+  }, [subjects, search, branchFilter, classFilter, statusFilter]);
 
   // KPI Calculations
   const totalCount = subjects.length;
@@ -296,14 +359,29 @@ const SubjectsManagement = () => {
           />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Branch Filter */}
+          <select
+            value={branchFilter}
+            onChange={e => handleBranchFilterChange(e.target.value)}
+            className="px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="">{t('common.allBranches') || 'Dhammaan Laamaha'}</option>
+            {branches.map(b => (
+              <option key={b._id} value={b._id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Class Filter (Filtered by selected branch) */}
           <select
             value={classFilter}
             onChange={e => setClassFilter(e.target.value)}
-            className="px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-brand-500"
+            className="px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-brand-500"
           >
-            <option value="">Dhammaan Fasallada</option>
-            {classes.map(c => (
+            <option value="">{t('common.allClasses') || 'Dhammaan Fasallada'}</option>
+            {filterDropdownClasses.map(c => (
               <option key={c._id} value={c._id}>
                 {classLabel(c, '')}
               </option>
@@ -313,7 +391,7 @@ const SubjectsManagement = () => {
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className="px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-brand-500"
+            className="px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-brand-500"
           >
             <option value="">Dhammaan Xaaladaha</option>
             <option value="Active">Active (Firfircoon)</option>
@@ -603,22 +681,39 @@ const SubjectsManagement = () => {
                   </div>
                 </div>
 
-                {/* 4. FASALLADA QAATA MAADDADAN (Compact Scrollable Pills) */}
+                {/* 4. FASALLADA QAATA MAADDADAN (With Branch Filter) */}
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-black uppercase text-slate-500">
-                      Fasallada Qaata Maaddadan
-                    </label>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] font-black uppercase text-slate-500">
+                        Fasallada Qaata Maaddadan
+                      </label>
+                      {/* Branch Filter dropdown */}
+                      <select
+                        value={modalBranchFilter}
+                        onChange={e => setModalBranchFilter(e.target.value)}
+                        className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-brand-700 dark:text-brand-300 outline-none"
+                      >
+                        <option value="">Dhammaan Laamaha</option>
+                        {branches.map(b => (
+                          <option key={b._id} value={b._id}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <button
                       type="button"
-                      onClick={selectAllClasses}
+                      onClick={selectAllModalClasses}
                       className="text-[11px] text-brand-600 font-bold hover:underline"
                     >
-                      {form.classIds.length === classes.length ? 'Ka qaad dhammaan' : 'Dooro dhammaan'}
+                      {modalVisibleClasses.length > 0 && modalVisibleClasses.every(c => form.classIds.includes(c._id))
+                        ? 'Ka qaad dhammaan'
+                        : 'Dooro dhammaan'}
                     </button>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-28 overflow-y-auto p-1.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/20">
-                    {classes.map(c => {
+                    {modalVisibleClasses.map(c => {
                       const isSelected = form.classIds.includes(c._id);
                       return (
                         <button
@@ -644,6 +739,11 @@ const SubjectsManagement = () => {
                         </button>
                       );
                     })}
+                    {modalVisibleClasses.length === 0 && (
+                      <div className="col-span-full py-4 text-center text-xs text-slate-400 font-semibold">
+                        Fasal kuma jiro laantan la doortay
+                      </div>
+                    )}
                   </div>
                 </div>
 

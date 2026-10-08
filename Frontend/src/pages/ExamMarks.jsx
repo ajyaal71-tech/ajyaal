@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import {
   PenSquare, Save, Loader2, ClipboardList, Users, Printer,
-  FileDown, BookOpen, Layers, CheckCircle2, AlertCircle, Sparkles, X
+  FileDown, BookOpen, Layers, CheckCircle2, AlertCircle, Sparkles, X, Building2
 } from 'lucide-react';
 import api from '../services/api';
 import { useAlert } from '../components/common/alerts/useAlert';
@@ -15,6 +15,8 @@ const ExamMarks = () => {
   const { t, tv, locale } = useLanguage();
   const location = useLocation();
 
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState('');
   const [classes, setClasses] = useState([]);
   const [exams, setExams] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState('');
@@ -31,19 +33,34 @@ const ExamMarks = () => {
   const [printModalOpen, setPrintModalOpen] = useState(false);
   const [printBlank, setPrintBlank] = useState(false);
 
-  // Load initial settings, classes, and exams
+  // Load initial settings, classes, exams, and branches
   useEffect(() => {
     (async () => {
       try {
-        const [resExams, resClasses, resSettings] = await Promise.all([
+        const [resExams, resClasses, resSettings, resBranches] = await Promise.all([
           api.get('/exams'),
           api.get('/classes'),
-          api.get('/settings').catch(() => ({ data: null }))
+          api.get('/settings').catch(() => ({ data: null })),
+          api.get('/branches').catch(() => ({ data: [] }))
         ]);
         const examsData = resExams.data || [];
         const classesData = resClasses.data || [];
+        let branchesData = resBranches?.data || [];
+
+        // Fallback: derive unique branches from classes if branches endpoint was empty
+        if (!branchesData.length) {
+          const branchMap = new Map();
+          classesData.forEach(c => {
+            if (c.branchId && typeof c.branchId === 'object' && c.branchId._id) {
+              branchMap.set(String(c.branchId._id), c.branchId);
+            }
+          });
+          branchesData = Array.from(branchMap.values());
+        }
+
         setExams(examsData);
         setClasses(classesData);
+        setBranches(branchesData);
         if (resSettings?.data) setSettings(resSettings.data);
 
         // Check URL params
@@ -52,6 +69,9 @@ const ExamMarks = () => {
           const match = examsData.find(e => e._id === paramExam);
           if (match) {
             const cId = match.classId?._id || match.classId;
+            const classObj = classesData.find(c => c._id === cId);
+            const bId = classObj?.branchId?._id || classObj?.branchId;
+            if (bId) setSelectedBranchId(String(bId));
             setSelectedClassId(cId || '');
             setSelectedExamId(paramExam);
             return;
@@ -60,7 +80,10 @@ const ExamMarks = () => {
 
         // Default selection
         if (classesData.length) {
-          const firstClassId = classesData[0]._id;
+          const firstClass = classesData[0];
+          const firstClassId = firstClass._id;
+          const bId = firstClass.branchId?._id || firstClass.branchId;
+          if (bId) setSelectedBranchId(String(bId));
           setSelectedClassId(firstClassId);
           const firstClassExams = examsData.filter(e => (e.classId?._id || e.classId) === firstClassId);
           if (firstClassExams.length) {
@@ -76,6 +99,32 @@ const ExamMarks = () => {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Filter classes by selected branch
+  const filteredClasses = useMemo(() => {
+    if (!selectedBranchId) return classes;
+    return classes.filter(c => {
+      const bId = c.branchId?._id || c.branchId;
+      return String(bId) === selectedBranchId;
+    });
+  }, [classes, selectedBranchId]);
+
+  // Handle branch change -> only that branch's classes remain
+  const handleBranchChange = (newBranchId) => {
+    setSelectedBranchId(newBranchId);
+    const matchingClasses = !newBranchId
+      ? classes
+      : classes.filter(c => String(c.branchId?._id || c.branchId) === newBranchId);
+
+    if (matchingClasses.length) {
+      const stillValid = matchingClasses.some(c => c._id === selectedClassId);
+      if (!stillValid) {
+        handleClassChange(matchingClasses[0]._id);
+      }
+    } else {
+      handleClassChange('');
+    }
+  };
 
   // Filter exams by selected class
   const filteredExams = useMemo(() => {
@@ -473,20 +522,39 @@ const ExamMarks = () => {
         </div>
       </div>
 
-      {/* Selectors Bar: Class + Exam */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-4 grid grid-cols-1 md:grid-cols-2 gap-4 print:hidden">
-        {/* Class Selector */}
+      {/* Selectors Bar: Branch + Class + Exam */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-4 grid grid-cols-1 md:grid-cols-3 gap-4 print:hidden">
+        {/* Branch Selector */}
         <div className="flex items-center gap-3">
           <span className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5 whitespace-nowrap">
-            <BookOpen size={16} className="text-brand-600" /> {t('selectClass')}:
+            <Building2 size={16} className="text-brand-600" /> {t('common.branch') || 'Laanta'}:
+          </span>
+          <select
+            value={selectedBranchId}
+            onChange={e => handleBranchChange(e.target.value)}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white font-bold text-sm focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="">{t('common.allBranches') || 'Dhammaan Laamaha'}</option>
+            {branches.map(b => (
+              <option key={b._id} value={b._id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Class Selector (Filtered by selected branch) */}
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5 whitespace-nowrap">
+            <BookOpen size={16} className="text-brand-600" /> {t('selectClass') || 'Dooro Fasalka'}:
           </span>
           <select
             value={selectedClassId}
             onChange={e => handleClassChange(e.target.value)}
             className="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white font-bold text-sm focus:ring-2 focus:ring-brand-500"
           >
-            <option value="">{t('allClasses')}</option>
-            {classes.map(c => (
+            <option value="">{t('allClasses') || 'Dhammaan Fasallada'}</option>
+            {filteredClasses.map(c => (
               <option key={c._id} value={c._id}>
                 {classLabel(c, '')}
               </option>
@@ -497,14 +565,14 @@ const ExamMarks = () => {
         {/* Exam Selector */}
         <div className="flex items-center gap-3">
           <span className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5 whitespace-nowrap">
-            <ClipboardList size={16} className="text-amber-500" /> {t('exams.selectExam')}:
+            <ClipboardList size={16} className="text-amber-500" /> {t('exams.selectExam') || 'Dooro Imtixaanka'}:
           </span>
           <select
             value={selectedExamId}
             onChange={e => setSelectedExamId(e.target.value)}
             className="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white font-bold text-sm focus:ring-2 focus:ring-brand-500"
           >
-            <option value="">{t('exams.selectExamOption')}</option>
+            <option value="">{t('exams.selectExamOption') || '-- Dooro Imtixaan --'}</option>
             {filteredExams.map(e => (
               <option key={e._id} value={e._id}>
                 {e.title} · {classLabel(e.classId, '')} · {tv(e.examType)}

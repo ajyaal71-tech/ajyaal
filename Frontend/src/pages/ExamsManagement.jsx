@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Plus, X, Edit2, Trash2, ClipboardList, PenSquare, Award,
-  Calendar, BookOpen, Send, Loader2, Search
+  Calendar, BookOpen, Send, Loader2, Search, Building2
 } from 'lucide-react';
 import api from '../services/api';
 import { useAlert } from '../components/common/alerts/useAlert';
@@ -34,6 +34,8 @@ const ExamsManagement = () => {
   const { t, tv, locale } = useLanguage();
   const [exams, setExams] = useState([]);
   const [classes, setClasses] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [modalBranchId, setModalBranchId] = useState('');
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -45,13 +47,29 @@ const ExamsManagement = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [resExams, resClasses, resSubjects] = await Promise.all([
+      const [resExams, resClasses, resSubjects, resBranches] = await Promise.all([
         api.get('/exams'),
         api.get('/classes'),
-        api.get('/subjects').catch(() => ({ data: [] }))
+        api.get('/subjects').catch(() => ({ data: [] })),
+        api.get('/branches').catch(() => ({ data: [] }))
       ]);
+      const classesData = resClasses.data || [];
+      let branchesData = resBranches?.data || [];
+
+      // Fallback: derive unique branches from classes if branches endpoint was empty
+      if (!branchesData.length) {
+        const branchMap = new Map();
+        classesData.forEach(c => {
+          if (c.branchId && typeof c.branchId === 'object' && c.branchId._id) {
+            branchMap.set(String(c.branchId._id), c.branchId);
+          }
+        });
+        branchesData = Array.from(branchMap.values());
+      }
+
       setExams(resExams.data || []);
-      setClasses(resClasses.data || []);
+      setClasses(classesData);
+      setBranches(branchesData);
       setRegisteredSubjects(resSubjects.data || []);
     } catch (error) {
       console.error('Failed to load exams', error);
@@ -72,6 +90,7 @@ const ExamsManagement = () => {
 
   const openAdd = () => {
     setEditing(null);
+    setModalBranchId('');
     const initialClassId = classes[0]?._id || '';
     const classSubs = getSubjectsForClass(initialClassId);
 
@@ -91,10 +110,14 @@ const ExamsManagement = () => {
 
   const openEdit = (exam) => {
     setEditing(exam);
+    const cId = exam.classId?._id || exam.classId || '';
+    const classObj = classes.find(c => c._id === cId);
+    const bId = classObj?.branchId?._id || classObj?.branchId;
+    setModalBranchId(bId ? String(bId) : '');
     setForm({
       title: exam.title || '',
       examType: exam.examType || 'Mid-Term',
-      classId: exam.classId?._id || exam.classId || '',
+      classId: cId,
       term: exam.term || '',
       academicYear: exam.academicYear || String(new Date().getFullYear()),
       examDate: (exam.examDate || new Date().toISOString()).slice(0, 10),
@@ -310,10 +333,44 @@ const ExamsManagement = () => {
                     </select>
                   </div>
                   <div>
+                    <label className="block text-xs font-black uppercase text-slate-500 mb-1 flex items-center gap-1">
+                      <Building2 size={13} className="text-brand-600" /> {t('common.branch') || 'Laanta'}
+                    </label>
+                    <select
+                      value={modalBranchId}
+                      onChange={e => {
+                        const bId = e.target.value;
+                        setModalBranchId(bId);
+                        if (bId) {
+                          const cls = classes.find(c => c._id === form.classId);
+                          const cbId = cls?.branchId?._id || cls?.branchId;
+                          if (String(cbId) !== bId) {
+                            const matching = classes.filter(c => String(c.branchId?._id || c.branchId) === bId);
+                            setForm(prev => ({ ...prev, classId: matching[0]?._id || '' }));
+                          }
+                        }
+                      }}
+                      className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white"
+                    >
+                      <option value="">{t('common.allBranches') || 'Dhammaan Laamaha'}</option>
+                      {branches.map(b => (
+                        <option key={b._id} value={b._id}>{b.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-xs font-black uppercase text-slate-500 mb-1">{t('exams.manage.classLabel')}</label>
-                    <select value={form.classId} onChange={e => setForm({ ...form, classId: e.target.value })} className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white">
+                    <select
+                      value={form.classId}
+                      onChange={e => setForm({ ...form, classId: e.target.value })}
+                      className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white"
+                    >
                       <option value="">{t('common.selectClass')}</option>
-                      {classes.map(c => <option key={c._id} value={c._id}>{classLabel(c)}</option>)}
+                      {classes
+                        .filter(c => !modalBranchId || String(c.branchId?._id || c.branchId) === modalBranchId)
+                        .map(c => (
+                          <option key={c._id} value={c._id}>{classLabel(c)}</option>
+                        ))}
                     </select>
                   </div>
                   <div>
