@@ -467,232 +467,232 @@ const SubjectsManagement = () => {
         </div>
       )}
 
-      {/* CREATE / EDIT SUBJECT MODAL */}
+      {/* CREATE / EDIT SUBJECT MODAL (Compact & Clean) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden my-8 animate-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="bg-slate-900 p-6 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white">
-                  <BookOpen size={20} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150">
+            {/* Modal Header (Compact) */}
+            <div className="bg-slate-900 px-5 py-3.5 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white">
+                  <BookOpen size={16} />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black">
+                  <h2 className="text-base font-black leading-tight">
                     {editing ? 'Wax ka beddel Maaddada' : 'Ku dar Maaddo Cusub'}
                   </h2>
-                  <p className="text-xs text-slate-400 font-semibold">
-                    Qeex magaca, dhibcaha Nisfi/Nihaayi iyo fasallada qaata
+                  <p className="text-[11px] text-slate-400 font-semibold leading-none mt-0.5">
+                    Geli magaca maaddada iyo dhibcaheeda
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+                className="p-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
-                    Magaca Maaddada *
-                  </label>
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
+                {/* 1. PRIMARY FIELD: MAGACA MAADDADA (Clear & Prominent) */}
+                <div className="p-3 rounded-xl bg-brand-50/70 dark:bg-brand-950/30 border-2 border-brand-500/50 dark:border-brand-500/40 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black uppercase tracking-wider text-brand-900 dark:text-brand-300 flex items-center gap-1.5">
+                      <BookOpen size={14} className="text-brand-600" />
+                      Magaca Maaddada (Subject Name) *
+                    </label>
+                    <span className="text-[10px] font-bold text-brand-700 dark:text-brand-400 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-full border border-brand-200 dark:border-brand-800">
+                      Halkaan ku qor
+                    </span>
+                  </div>
                   <input
                     type="text"
                     required
+                    autoFocus
                     value={form.name}
                     onChange={e => setForm({ ...form, name: e.target.value })}
-                    placeholder="tusaale: Xisaab, Soomaali, Carabiga"
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-brand-500"
+                    placeholder="Qor magaca maaddada (tusaale: Xisaab, Carabiga, Soomaali, Xadiis...)"
+                    className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-800 border border-brand-300 dark:border-brand-700 outline-none text-slate-900 dark:text-white text-sm font-black focus:ring-2 focus:ring-brand-500 placeholder:text-slate-400"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
-                    Koodhka Maaddada
-                  </label>
-                  <input
-                    type="text"
-                    value={form.code}
-                    onChange={e => setForm({ ...form, code: e.target.value })}
-                    placeholder="tusaale: MATH-101, SOM-101"
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-sm font-mono font-bold focus:ring-2 focus:ring-brand-500 uppercase"
-                  />
-                </div>
-              </div>
-
-              {/* Marking Scheme: Nisfi, Nihaayi, Total, Pass */}
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-brand-600">
-                  <Award size={16} /> Qaybinta Dhibcaha Imtixaanka (Marking Scheme)
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {/* 2. CODE & TEACHER ROW (Compact) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                      Nisfi (Dhexe)
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">
+                      Koodhka Maaddada (Code)
                     </label>
                     <input
-                      type="number"
-                      min="0"
-                      value={form.nisfiFullMarks}
-                      onChange={e => handleScoreChange('nisfiFullMarks', e.target.value)}
-                      className="w-full px-3 py-2 text-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500"
+                      type="text"
+                      value={form.code}
+                      onChange={e => setForm({ ...form, code: e.target.value })}
+                      placeholder="tusaale: MATH-101, SOM"
+                      className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-xs font-mono font-bold uppercase focus:ring-2 focus:ring-brand-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                      Nihaayi (Dhammaad)
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">
+                      Macallinka Loo Xilsaaray
                     </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.nihaayiFullMarks}
-                      onChange={e => handleScoreChange('nihaayiFullMarks', e.target.value)}
-                      className="w-full px-3 py-2 text-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                      Wadarta Buuxda
-                    </label>
-                    <input
-                      type="number"
-                      readOnly
-                      value={form.fullMarks}
-                      className="w-full px-3 py-2 text-center rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm font-black text-slate-700 dark:text-slate-300 cursor-not-allowed"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                      Dhibcaha Gudbidda
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.passMarks}
-                      onChange={e => handleScoreChange('passMarks', e.target.value)}
-                      className="w-full px-3 py-2 text-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500"
-                    />
+                    <select
+                      value={form.teacherId}
+                      onChange={e => setForm({ ...form, teacherId: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value="">-- Dooro Macallin (Ikhtiyaari) --</option>
+                      {teachers.map(t => (
+                        <option key={t._id} value={t._id}>
+                          {t.fullName || t.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-              </div>
 
-              {/* Assigned Teacher & Status */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
-                    Macallinka Loo Xilsaaray
-                  </label>
-                  <select
-                    value={form.teacherId}
-                    onChange={e => setForm({ ...form, teacherId: e.target.value })}
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-brand-500"
-                  >
-                    <option value="">-- Dooro Macallin (Ikhtiyaari) --</option>
-                    {teachers.map(t => (
-                      <option key={t._id} value={t._id}>
-                        {t.fullName || t.name} {t.phone ? `(${t.phone})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                {/* 3. MARKING SCHEME (Compact 4-column strip) */}
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-2">
+                    <Award size={13} className="text-amber-500" />
+                    Dhibcaha: Nisfi (40) + Nihaayi (60) = Wadarta (100)
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    <div>
+                      <span className="block text-[10px] font-bold text-slate-500 mb-0.5 text-center">Nisfi</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.nisfiFullMarks}
+                        onChange={e => handleScoreChange('nisfiFullMarks', e.target.value)}
+                        className="w-full px-2 py-1.5 text-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-bold text-slate-500 mb-0.5 text-center">Nihaayi</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.nihaayiFullMarks}
+                        onChange={e => handleScoreChange('nihaayiFullMarks', e.target.value)}
+                        className="w-full px-2 py-1.5 text-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-bold text-slate-500 mb-0.5 text-center">Wadarta</span>
+                      <input
+                        type="number"
+                        readOnly
+                        value={form.fullMarks}
+                        className="w-full px-2 py-1.5 text-center rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-600 dark:text-slate-300 cursor-not-allowed"
+                      />
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-bold text-slate-500 mb-0.5 text-center">Gudbidda</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.passMarks}
+                        onChange={e => handleScoreChange('passMarks', e.target.value)}
+                        className="w-full px-2 py-1.5 text-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
-                    Xaaladda
-                  </label>
-                  <select
-                    value={form.status}
-                    onChange={e => setForm({ ...form, status: e.target.value })}
-                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-brand-500"
-                  >
-                    <option value="Active">Active (Firfircoon)</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Assigned Classes Multi-select */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-black uppercase tracking-wider text-slate-500">
-                    Fasallada Qaata Maaddadan
-                  </label>
-                  <button
-                    type="button"
-                    onClick={selectAllClasses}
-                    className="text-xs text-brand-600 font-bold hover:underline"
-                  >
-                    {form.classIds.length === classes.length ? 'Ka qaad dhammaan' : 'Dooro dhammaan'}
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-2 border border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50/50 dark:bg-slate-800/20">
-                  {classes.map(c => {
-                    const isSelected = form.classIds.includes(c._id);
-                    return (
-                      <button
-                        key={c._id}
-                        type="button"
-                        onClick={() => toggleClassSelect(c._id)}
-                        className={`flex items-center gap-2 p-2.5 rounded-xl text-xs font-bold text-left transition border ${
-                          isSelected
-                            ? 'bg-brand-50 border-brand-500 text-brand-900 dark:bg-brand-950/40 dark:text-brand-300'
-                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-                        }`}
-                      >
-                        <div
-                          className={`w-4 h-4 rounded-md flex items-center justify-center border ${
+                {/* 4. FASALLADA QAATA MAADDADAN (Compact Scrollable Pills) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-black uppercase text-slate-500">
+                      Fasallada Qaata Maaddadan
+                    </label>
+                    <button
+                      type="button"
+                      onClick={selectAllClasses}
+                      className="text-[11px] text-brand-600 font-bold hover:underline"
+                    >
+                      {form.classIds.length === classes.length ? 'Ka qaad dhammaan' : 'Dooro dhammaan'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-28 overflow-y-auto p-1.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/20">
+                    {classes.map(c => {
+                      const isSelected = form.classIds.includes(c._id);
+                      return (
+                        <button
+                          key={c._id}
+                          type="button"
+                          onClick={() => toggleClassSelect(c._id)}
+                          className={`flex items-center gap-1.5 p-1.5 px-2 rounded-lg text-[11px] font-bold text-left transition border ${
                             isSelected
-                              ? 'bg-brand-600 border-brand-600 text-white'
-                              : 'border-slate-300 dark:border-slate-600'
+                              ? 'bg-brand-50 border-brand-500 text-brand-900 dark:bg-brand-950/40 dark:text-brand-300'
+                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                           }`}
                         >
-                          {isSelected && <Check size={12} />}
-                        </div>
-                        <span className="truncate">{classLabel(c, '')}</span>
-                      </button>
-                    );
-                  })}
+                          <div
+                            className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border ${
+                              isSelected
+                                ? 'bg-brand-600 border-brand-600 text-white'
+                                : 'border-slate-300 dark:border-slate-600'
+                            }`}
+                          >
+                            {isSelected && <Check size={10} />}
+                          </div>
+                          <span className="truncate">{classLabel(c, '')}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 5. STATUS & DESCRIPTION ROW (Compact) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">
+                      Xaaladda
+                    </label>
+                    <select
+                      value={form.status}
+                      onChange={e => setForm({ ...form, status: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">
+                      Faahfaahin (Ikhtiyaari)
+                    </label>
+                    <input
+                      type="text"
+                      value={form.description}
+                      onChange={e => setForm({ ...form, description: e.target.value })}
+                      placeholder="Faahfaahin kooban..."
+                      className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-500"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Description */}
-              <div>
-                <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-1.5">
-                  Faahfaahin / Qoraal (Ikhtiyaari)
-                </label>
-                <textarea
-                  rows={2}
-                  value={form.description}
-                  onChange={e => setForm({ ...form, description: e.target.value })}
-                  placeholder="Qoraal kooban oo ku saabsan maaddada..."
-                  className="w-full px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white text-xs font-medium resize-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              {/* Modal Footer (Compact Pinned) */}
+              <div className="flex items-center justify-end gap-2.5 px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-6 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs uppercase transition"
+                  className="px-4 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs uppercase transition hover:bg-slate-100"
                 >
                   {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase transition shadow-md shadow-brand-600/20 disabled:opacity-60"
+                  className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs uppercase transition shadow-md shadow-brand-600/20 disabled:opacity-60"
                 >
-                  {saving ? <Loader2 size={16} className="animate-spin" /> : <SaveIcon size={16} />}
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <SaveIcon size={14} />}
                   {editing ? 'Cusbooneysii' : 'Kaydi Maaddada'}
                 </button>
               </div>
