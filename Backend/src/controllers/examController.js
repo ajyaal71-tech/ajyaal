@@ -37,14 +37,24 @@ const buildResultSheet = (exam, students, resultDocs) => {
         const subjectResults = subjects.map((sub) => {
             const m = marksMap.get(sub.name);
             const isAbsent = !!m?.isAbsent;
-            const obtained = isAbsent ? 0 : Number(m?.marksObtained || 0);
+            const nisfi = isAbsent ? 0 : Number(m?.nisfi || 0);
+            const nihaayi = isAbsent ? 0 : Number(m?.nihaayi || 0);
+            const obtained = isAbsent
+                ? 0
+                : (m?.nisfi !== undefined || m?.nihaayi !== undefined)
+                    ? (nisfi + nihaayi)
+                    : Number(m?.marksObtained || 0);
             const passed = !isAbsent && obtained >= Number(sub.passMarks || 0);
             if (entered && !passed) failedSubjects += 1;
             totalObtained += obtained;
             return {
                 subject: sub.name,
-                fullMarks: Number(sub.fullMarks || 0),
+                nisfiFullMarks: Number(sub.nisfiFullMarks || 40),
+                nihaayiFullMarks: Number(sub.nihaayiFullMarks || 60),
+                fullMarks: Number(sub.fullMarks || 100),
                 passMarks: Number(sub.passMarks || 0),
+                nisfi,
+                nihaayi,
                 marksObtained: obtained,
                 isAbsent,
                 passed
@@ -52,6 +62,7 @@ const buildResultSheet = (exam, students, resultDocs) => {
         });
 
         const percentage = totalFull > 0 ? round1((totalObtained / totalFull) * 100) : 0;
+        const average = subjects.length > 0 ? round1(totalObtained / subjects.length) : 0;
         const { grade, point } = gradeFor(percentage);
 
         return {
@@ -63,6 +74,7 @@ const buildResultSheet = (exam, students, resultDocs) => {
             totalObtained,
             totalFull,
             percentage,
+            average,
             grade: entered ? grade : '-',
             point: entered ? point : 0,
             status: entered ? (failedSubjects > 0 ? 'Fail' : 'Pass') : 'Pending',
@@ -149,6 +161,23 @@ const getExamById = asyncHandler(async (req, res) => {
     res.json(exam);
 });
 
+const normalizeSubjects = (subjects) => {
+    if (!Array.isArray(subjects)) return [];
+    return subjects.map((s) => {
+        const nisfiFullMarks = Math.max(0, Number(s.nisfiFullMarks) || 40);
+        const nihaayiFullMarks = Math.max(0, Number(s.nihaayiFullMarks) || 60);
+        const fullMarks = Number(s.fullMarks) || (nisfiFullMarks + nihaayiFullMarks);
+        const passMarks = Math.max(0, Number(s.passMarks) || 40);
+        return {
+            name: String(s.name || '').trim(),
+            nisfiFullMarks,
+            nihaayiFullMarks,
+            fullMarks,
+            passMarks
+        };
+    }).filter((s) => s.name);
+};
+
 const createExam = asyncHandler(async (req, res) => {
     const payload = { ...req.body, createdBy: req.user?._id };
     if (!payload.branchId && req.user?.branchId) payload.branchId = req.user.branchId;
@@ -156,7 +185,8 @@ const createExam = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error('Exam title and class are required');
     }
-    if (!Array.isArray(payload.subjects) || payload.subjects.length === 0) {
+    payload.subjects = normalizeSubjects(payload.subjects);
+    if (payload.subjects.length === 0) {
         res.status(400);
         throw new Error('Add at least one subject to the exam');
     }
@@ -166,7 +196,11 @@ const createExam = asyncHandler(async (req, res) => {
 });
 
 const updateExam = asyncHandler(async (req, res) => {
-    const exam = await Exam.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+    const payload = { ...req.body };
+    if (payload.subjects) {
+        payload.subjects = normalizeSubjects(payload.subjects);
+    }
+    const exam = await Exam.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true })
         .populate({ path: 'classId', select: 'name className branchId', populate: { path: 'branchId', select: 'name' } });
     if (!exam) {
         res.status(404);
@@ -222,11 +256,23 @@ const saveExamResults = asyncHandler(async (req, res) => {
         if (!r.studentId) continue;
         const marks = (Array.isArray(r.marks) ? r.marks : [])
             .filter((m) => validSubjects.has(m.subject))
-            .map((m) => ({
-                subject: m.subject,
-                marksObtained: Math.max(0, Number(m.marksObtained) || 0),
-                isAbsent: !!m.isAbsent
-            }));
+            .map((m) => {
+                const isAbsent = !!m.isAbsent;
+                const nisfi = isAbsent ? 0 : Math.max(0, Number(m.nisfi) || 0);
+                const nihaayi = isAbsent ? 0 : Math.max(0, Number(m.nihaayi) || 0);
+                const marksObtained = isAbsent
+                    ? 0
+                    : (m.nisfi !== undefined || m.nihaayi !== undefined)
+                        ? (nisfi + nihaayi)
+                        : Math.max(0, Number(m.marksObtained) || 0);
+                return {
+                    subject: m.subject,
+                    nisfi,
+                    nihaayi,
+                    marksObtained,
+                    isAbsent
+                };
+            });
         await ExamResult.findOneAndUpdate(
             { examId: exam._id, studentId: r.studentId },
             {

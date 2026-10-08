@@ -62,6 +62,7 @@ export const NAV_CONFIG = [
     roles: [UserRole.SUPER_ADMIN, UserRole.INSTITUTE_ADMIN, UserRole.BRANCH_MANAGER],
     subItems: [
       { label: 'Classes', translationKey: 'classes', path: '/academic/classes', icon: BookOpen },
+      { label: 'Subjects', translationKey: 'subjects', path: '/academic/subjects', icon: BookOpen },
       { label: 'Teachers', translationKey: 'teachers', path: '/academic/teachers', icon: GraduationCap },
       { label: 'Students', translationKey: 'students', path: '/academic/students', icon: Users },
       { label: 'Guardians', translationKey: 'guardians', path: '/academic/guardians', icon: Users },

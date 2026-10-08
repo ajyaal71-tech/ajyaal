@@ -19,7 +19,7 @@ const emptyForm = () => ({
   examDate: new Date().toISOString().slice(0, 10),
   description: '',
   status: 'Scheduled',
-  subjects: [{ name: '', fullMarks: 100, passMarks: 40 }]
+  subjects: [{ name: '', nisfiFullMarks: 40, nihaayiFullMarks: 60, fullMarks: 100, passMarks: 40 }]
 });
 
 const statusStyle = {
@@ -40,16 +40,19 @@ const ExamsManagement = () => {
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [registeredSubjects, setRegisteredSubjects] = useState([]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [resExams, resClasses] = await Promise.all([
+      const [resExams, resClasses, resSubjects] = await Promise.all([
         api.get('/exams'),
-        api.get('/classes')
+        api.get('/classes'),
+        api.get('/subjects').catch(() => ({ data: [] }))
       ]);
       setExams(resExams.data || []);
       setClasses(resClasses.data || []);
+      setRegisteredSubjects(resSubjects.data || []);
     } catch (error) {
       console.error('Failed to load exams', error);
       showAlert({ type: 'danger', title: t('common.error'), message: t('exams.loadFailed') });
@@ -60,9 +63,29 @@ const ExamsManagement = () => {
 
   useEffect(() => { fetchData(); }, []);
 
+  const getSubjectsForClass = (classId) => {
+    if (!classId) return [];
+    return registeredSubjects.filter(s =>
+      !s.classIds?.length || s.classIds.some(c => (c._id || c) === classId)
+    );
+  };
+
   const openAdd = () => {
     setEditing(null);
-    setForm({ ...emptyForm(), classId: classes[0]?._id || '' });
+    const initialClassId = classes[0]?._id || '';
+    const classSubs = getSubjectsForClass(initialClassId);
+
+    const initialSubjects = classSubs.length
+      ? classSubs.map(s => ({
+          name: s.name,
+          nisfiFullMarks: s.nisfiFullMarks || 40,
+          nihaayiFullMarks: s.nihaayiFullMarks || 60,
+          fullMarks: s.fullMarks || 100,
+          passMarks: s.passMarks || 40
+        }))
+      : [{ name: '', nisfiFullMarks: 40, nihaayiFullMarks: 60, fullMarks: 100, passMarks: 40 }];
+
+    setForm({ ...emptyForm(), classId: initialClassId, subjects: initialSubjects });
     setIsModalOpen(true);
   };
 
@@ -78,8 +101,14 @@ const ExamsManagement = () => {
       description: exam.description || '',
       status: exam.status || 'Scheduled',
       subjects: (exam.subjects && exam.subjects.length)
-        ? exam.subjects.map(s => ({ name: s.name, fullMarks: s.fullMarks, passMarks: s.passMarks }))
-        : [{ name: '', fullMarks: 100, passMarks: 40 }]
+        ? exam.subjects.map(s => ({
+            name: s.name,
+            nisfiFullMarks: s.nisfiFullMarks ?? 40,
+            nihaayiFullMarks: s.nihaayiFullMarks ?? 60,
+            fullMarks: s.fullMarks || ((s.nisfiFullMarks || 40) + (s.nihaayiFullMarks || 60)),
+            passMarks: s.passMarks ?? 40
+          }))
+        : [{ name: '', nisfiFullMarks: 40, nihaayiFullMarks: 60, fullMarks: 100, passMarks: 40 }]
     });
     setIsModalOpen(true);
   };
@@ -87,11 +116,20 @@ const ExamsManagement = () => {
   const setSubject = (idx, key, value) => {
     setForm(prev => {
       const subjects = [...prev.subjects];
-      subjects[idx] = { ...subjects[idx], [key]: value };
+      const cur = { ...subjects[idx], [key]: value };
+      if (key === 'nisfiFullMarks' || key === 'nihaayiFullMarks') {
+        const n = key === 'nisfiFullMarks' ? Number(value) || 0 : Number(cur.nisfiFullMarks) || 0;
+        const f = key === 'nihaayiFullMarks' ? Number(value) || 0 : Number(cur.nihaayiFullMarks) || 0;
+        cur.fullMarks = n + f;
+      }
+      subjects[idx] = cur;
       return { ...prev, subjects };
     });
   };
-  const addSubject = () => setForm(prev => ({ ...prev, subjects: [...prev.subjects, { name: '', fullMarks: 100, passMarks: 40 }] }));
+  const addSubject = () => setForm(prev => ({
+    ...prev,
+    subjects: [...prev.subjects, { name: '', nisfiFullMarks: 40, nihaayiFullMarks: 60, fullMarks: 100, passMarks: 40 }]
+  }));
   const removeSubject = (idx) => setForm(prev => ({ ...prev, subjects: prev.subjects.filter((_, i) => i !== idx) }));
 
   const handleSubmit = async (e) => {
@@ -100,7 +138,19 @@ const ExamsManagement = () => {
     if (!form.classId) return showAlert({ type: 'warning', title: t('exams.manage.validation'), message: t('exams.manage.classRequired') });
     const subjects = form.subjects
       .filter(s => s.name.trim())
-      .map(s => ({ name: s.name.trim(), fullMarks: Number(s.fullMarks) || 100, passMarks: Number(s.passMarks) || 0 }));
+      .map(s => {
+        const nisfiFullMarks = Math.max(0, Number(s.nisfiFullMarks) || 40);
+        const nihaayiFullMarks = Math.max(0, Number(s.nihaayiFullMarks) || 60);
+        const fullMarks = Number(s.fullMarks) || (nisfiFullMarks + nihaayiFullMarks);
+        const passMarks = Math.max(0, Number(s.passMarks) || 40);
+        return {
+          name: s.name.trim(),
+          nisfiFullMarks,
+          nihaayiFullMarks,
+          fullMarks,
+          passMarks
+        };
+      });
     if (!subjects.length) return showAlert({ type: 'warning', title: t('exams.manage.validation'), message: t('exams.manage.subjectRequired') });
     if (subjects.some(s => s.passMarks > s.fullMarks)) return showAlert({ type: 'warning', title: t('exams.manage.validation'), message: t('exams.manage.passExceeds') });
 
@@ -288,22 +338,51 @@ const ExamsManagement = () => {
 
                 {/* Subjects */}
                 <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                     <span className="text-xs font-black uppercase tracking-wider text-brand-600 dark:text-brand-400 flex items-center gap-2"><BookOpen size={16} /> {t('exams.manage.subjectsMarks')}</span>
-                    <button type="button" onClick={addSubject} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 text-xs font-black uppercase"><Plus size={14} /> {t('exams.manage.addSubject')}</button>
+                    <div className="flex items-center gap-2">
+                      {registeredSubjects.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const matched = getSubjectsForClass(form.classId);
+                            if (matched.length) {
+                              setForm(prev => ({
+                                ...prev,
+                                subjects: matched.map(s => ({
+                                  name: s.name,
+                                  nisfiFullMarks: s.nisfiFullMarks || 40,
+                                  nihaayiFullMarks: s.nihaayiFullMarks || 60,
+                                  fullMarks: s.fullMarks || 100,
+                                  passMarks: s.passMarks || 40
+                                }))
+                              }));
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 text-xs font-black uppercase"
+                        >
+                          Soo rar Maaddooyinka Fasalka
+                        </button>
+                      )}
+                      <button type="button" onClick={addSubject} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 text-xs font-black uppercase"><Plus size={14} /> {t('exams.manage.addSubject')}</button>
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <div className="grid grid-cols-[1fr,110px,110px,40px] gap-2 px-1">
+                    <div className="grid grid-cols-[1fr,90px,90px,90px,90px,36px] gap-2 px-1">
                       <span className="text-[10px] font-black uppercase text-slate-400">{t('exams.manage.subjectName')}</span>
-                      <span className="text-[10px] font-black uppercase text-slate-400">{t('exams.manage.fullMarks')}</span>
-                      <span className="text-[10px] font-black uppercase text-slate-400">{t('exams.manage.passMarks')}</span>
+                      <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('nisfiShort')}</span>
+                      <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('nihaayiShort')}</span>
+                      <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('common.total')}</span>
+                      <span className="text-[10px] font-black uppercase text-slate-400 text-center">{t('exams.manage.passMarks')}</span>
                       <span></span>
                     </div>
                     {form.subjects.map((s, idx) => (
-                      <div key={idx} className="grid grid-cols-[1fr,110px,110px,40px] gap-2 items-center">
+                      <div key={idx} className="grid grid-cols-[1fr,90px,90px,90px,90px,36px] gap-2 items-center">
                         <input value={s.name} onChange={e => setSubject(idx, 'name', e.target.value)} placeholder={t('exams.manage.subjectPlaceholder')} className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-slate-900 dark:text-white" />
-                        <input type="number" min="1" value={s.fullMarks} onChange={e => setSubject(idx, 'fullMarks', e.target.value)} className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-slate-900 dark:text-white" />
-                        <input type="number" min="0" value={s.passMarks} onChange={e => setSubject(idx, 'passMarks', e.target.value)} className="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-slate-900 dark:text-white" />
+                        <input type="number" min="0" value={s.nisfiFullMarks} onChange={e => setSubject(idx, 'nisfiFullMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white font-bold" />
+                        <input type="number" min="0" value={s.nihaayiFullMarks} onChange={e => setSubject(idx, 'nihaayiFullMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white font-bold" />
+                        <input type="number" min="1" readOnly value={s.fullMarks} className="px-2 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-600 dark:text-slate-300 font-black cursor-not-allowed" />
+                        <input type="number" min="0" value={s.passMarks} onChange={e => setSubject(idx, 'passMarks', e.target.value)} className="px-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-sm text-center text-slate-900 dark:text-white" />
                         <button type="button" onClick={() => removeSubject(idx)} disabled={form.subjects.length === 1} className="p-2 rounded-xl text-slate-400 hover:text-rose-500 disabled:opacity-30"><Trash2 size={16} /></button>
                       </div>
                     ))}

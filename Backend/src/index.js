@@ -109,6 +109,7 @@ app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/roles', require('./routes/roleRoutes'));
 app.use('/api/branches', require('./routes/branchRoutes'));
 app.use('/api/classes', require('./routes/clsRoutes'));
+app.use('/api/subjects', require('./routes/subjectRoutes'));
 app.use('/api/guardians', require('./routes/guardianRoutes'));
 app.use('/api/students', require('./routes/studentRoutes'));
 app.use('/api/payments', require('./routes/paymentRoutes'));

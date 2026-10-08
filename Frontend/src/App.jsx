@@ -8,6 +8,7 @@ import { applyBrandColors, getDefaultColors } from './utils/colorUtils';
 import DashboardOverview from './pages/DashboardOverview.jsx';
 
 import ClassesManagement from './pages/ClassesManagement.jsx';
+import SubjectsManagement from './pages/SubjectsManagement.jsx';
 import TeachersManagement from './pages/TeachersManagement.jsx';
 import StudentsManagement from './pages/StudentsManagement.jsx';
 import GuardiansManagement from './pages/GuardiansManagement.jsx';
@@ -277,6 +278,7 @@ const App = () => {
 
                     {/* Academic Management */}
                     <Route path="/academic/classes" element={<ClassesManagement />} />
+                    <Route path="/academic/subjects" element={<SubjectsManagement />} />
                     <Route path="/academic/teachers" element={<TeachersManagement />} />
                     <Route path="/academic/students" element={<StudentsManagement />} />
                     <Route path="/academic/guardians" element={<GuardiansManagement />} />

@@ -1,8 +1,9 @@
 const mongoose = require('mongoose');
 
-// A single subject line inside an exam: its name and the marking scheme.
 const examSubjectSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
+    nisfiFullMarks: { type: Number, default: 40, min: 0 },
+    nihaayiFullMarks: { type: Number, default: 60, min: 0 },
     fullMarks: { type: Number, default: 100, min: 1 },
     passMarks: { type: Number, default: 40, min: 0 }
 }, { _id: false });
