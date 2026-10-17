@@ -46,12 +46,12 @@ const TeachersManagement = () => {
       if (saved) {
         const parsed = JSON.parse(saved);
         return {
-          name: parsed.name || 'Salaaxu–Aldaareyn',
+          name: parsed.name || 'Machadka Ajyaal',
           subtitle: parsed.systemSubtitle || 'Institute Management'
         };
       }
     } catch (_) {}
-    return { name: 'Salaaxu–Aldaareyn', subtitle: 'Institute Management' };
+    return { name: 'Machadka Ajyaal', subtitle: 'Institute Management' };
   });
 
   useEffect(() => {
@@ -59,7 +59,7 @@ const TeachersManagement = () => {
       try {
         const { data } = await api.get('/settings');
         setTenantInfo({
-          name: data?.name || 'Salaaxu–Aldaareyn',
+          name: data?.name || 'Machadka Ajyaal',
           subtitle: data?.systemSubtitle || 'Institute Management'
         });
       } catch (_) {}
@@ -237,7 +237,7 @@ const TeachersManagement = () => {
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
-      const tenantTitle = `${tenantInfo.name || 'SALAAXU-ALDAAREYN'} - ${tenantInfo.subtitle && tenantInfo.subtitle !== 'Institute Management' ? tenantInfo.subtitle : 'INSTITUTE MANAGEMENT'}`.toUpperCase();
+      const tenantTitle = `${tenantInfo.name || 'MACHADKA AJYAAL'} - ${tenantInfo.subtitle && tenantInfo.subtitle !== 'Institute Management' ? tenantInfo.subtitle : 'INSTITUTE MANAGEMENT'}`.toUpperCase();
       doc.text(tenantTitle, 14, 11);
 
       // Report Title based on active card/filter

@@ -407,7 +407,7 @@ const QuranManagement = () => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(15, 23, 42);
-    doc.text('CULUUMTA SHARECADA & CARABIGA EE SALAAX AL-DAAREYN', pageWidth / 2, 16, { align: 'center' });
+    doc.text('CULUUMTA SHARECADA & CARABIGA EE AJYAAL', pageWidth / 2, 16, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
@@ -535,7 +535,7 @@ const QuranManagement = () => {
                 <span>{locale === 'ar' ? 'جدول السور للقرآن الكريم' : "Jadwalka Suuradaha Quraanka"}</span>
               </h1>
               <p className="text-xs text-slate-300 font-medium mt-1">
-                CULUUMTA SHARECADA & CARABIGA EE SALAAX AL-DAAREYN • ELASHA - SOMALIA
+                CULUUMTA SHARECADA & CARABIGA EE AJYAAL • ELASHA - SOMALIA
               </p>
             </div>
           </div>
@@ -588,7 +588,7 @@ const QuranManagement = () => {
       {/* ========================================================================= */}
       <div className="hidden print:block text-center space-y-2 mb-6 border-b-2 border-slate-900 pb-4">
         <h2 className="text-base font-black tracking-wider uppercase text-slate-900">
-          CULUUMTA SHARECADA & CARABIGA EE SALAAX AL-DAAREYN
+          CULUUMTA SHARECADA & CARABIGA EE AJYAAL
         </h2>
         <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">
           ELASHA - SOMALIA

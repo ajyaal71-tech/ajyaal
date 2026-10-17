@@ -53,7 +53,7 @@ const MonthlyPayments = () => {
         if (parsed.name) return { name: parsed.name, subtitle: parsed.systemSubtitle || '' };
       }
     } catch (e) {}
-    return { name: 'salaax aldaareyn', subtitle: '' };
+    return { name: 'Machadka Ajyaal', subtitle: '' };
   });
 
   useEffect(() => {

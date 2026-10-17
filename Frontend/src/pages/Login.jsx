@@ -161,7 +161,7 @@ const Login = ({ onLogin }) => {
             )}
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            {tenantBranding?.name || 'salaax aldaareyn'}
+            {tenantBranding?.name || 'Machadka Ajyaal'}
           </h1>
           <p className="mt-1.5 text-sm font-medium text-slate-500 dark:text-slate-400">
             {tenantBranding?.systemSubtitle === 'Institute Management'

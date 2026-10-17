@@ -221,7 +221,7 @@ const ExamResults = () => {
     });
   }, [broadsheetData]);
 
-  const instituteName = settings?.businessInfo?.name || 'MACHADKA SALAAX ALDAAREYN';
+  const instituteName = settings?.businessInfo?.name || 'MACHADKA AJYAAL';
 
   // Export Single Exam PDF (Landscape format)
   const handleExportPDF = () => {

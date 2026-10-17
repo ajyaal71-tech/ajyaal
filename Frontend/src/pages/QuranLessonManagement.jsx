@@ -615,7 +615,7 @@ const QuranLessonManagement = () => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(15, 23, 42);
-    doc.text('CULUUMTA SHARECADA & CARABIGA EE SALAAX AL-DAAREYN', pageWidth / 2, 16, { align: 'center' });
+    doc.text('CULUUMTA SHARECADA & CARABIGA EE AJYAAL', pageWidth / 2, 16, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);

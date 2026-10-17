@@ -405,7 +405,7 @@ const ExamMarks = () => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageW = doc.internal.pageSize.getWidth();
 
-    const instituteName = settings?.businessInfo?.name || 'MACHADKA SALAAX ALDAAREYN';
+    const instituteName = settings?.businessInfo?.name || 'MACHADKA AJYAAL';
     const subName = currentSubjectObj.name;
     const nisfiMax = currentSubjectObj.nisfiFullMarks || 40;
     const nihaayiMax = currentSubjectObj.nihaayiFullMarks || 60;
@@ -531,7 +531,7 @@ const ExamMarks = () => {
     doc.save(`Waraaqda_${subName}_${exam.title.replace(/\s+/g, '_')}.pdf`);
   };
 
-  const instituteName = settings?.businessInfo?.name || 'MACHADKA SALAAX ALDAAREYN';
+  const instituteName = settings?.businessInfo?.name || 'MACHADKA AJYAAL';
 
   return (
     <div className="p-6 lg:p-8 space-y-8 max-w-[1800px] mx-auto animate-in fade-in duration-500 pb-24">
